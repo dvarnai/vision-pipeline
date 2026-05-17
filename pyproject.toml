@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vision-pipeline"
+version = "0.1.0"
+description = "Learning project for image-level steel defect detection with the Severstal dataset."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "torch",
+    "torchvision",
+    "matplotlib",
+    "pandas",
+    "pillow",
+    "jupyter",
+    "ipywidgets",
+]
+
+[tool.setuptools]
+py-modules = ["main"]

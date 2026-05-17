@@ -70,6 +70,15 @@ Stratification does not remove the underlying imbalance. Training will still nee
 
 The dataset CSV contains `ImageId`, `ClassId`, and `EncodedPixels`.
 
+Class distribution in `train.csv`:
+
+| ClassId | Samples |
+| --- | ---: |
+| 1 | 897 |
+| 2 | 247 |
+| 3 | 5150 |
+| 4 | 801 |
+
 For the first pass, the dataset class uses `ClassId` as the image-level label and does not decode `EncodedPixels`. This keeps the first implementation focused on classification rather than segmentation.
 
 The image data is treated as monochrome. Converting images to grayscale during loading avoids carrying redundant RGB channels through the pipeline.

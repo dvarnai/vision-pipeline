@@ -18,6 +18,7 @@ The original Kaggle task is segmentation, but the first project milestone is ima
   - matplotlib
   - Jupyter
   - ipywidgets
+  - scikit-learn
 - Confirmed the Kaggle dataset layout:
 
 ```text
@@ -29,6 +30,7 @@ data/
 
 - Added `.gitignore` rules so local dataset files, virtualenv files, IDE files, and generated package metadata are not committed.
 - Created the initial dataset class in `src/data/dataset.py`.
+- Added stratified train/validation splitting in `src/data/split.py`.
 - Started a notebook for dataset exploration in `notebooks/dataset.ipynb`.
 
 ## Dataset Class
@@ -47,6 +49,22 @@ Current behavior:
 - Converts opened images to monochrome because the steel surface images are monochrome, reducing unnecessary color dimensions before model input.
 - Supports an optional transform callable.
 - Returns an image tensor and the corresponding `ClassId`.
+
+## Train/Validation Split
+
+Implemented `stratified_train_test_split` for splitting a PyTorch dataset into training and validation subsets.
+
+Current behavior:
+
+- Builds sample indices from the dataset.
+- Reads each sample label from `dataset[i][1]`.
+- Uses scikit-learn's `train_test_split`.
+- Passes labels through `stratify=labels` so the train and validation sets preserve the class-label distribution.
+- Returns PyTorch `Subset` objects for the training and validation splits.
+
+This helps keep defect classes represented proportionally in both sets, which is important because the Severstal labels are class-imbalanced.
+
+Stratification does not remove the underlying imbalance. Training will still need an imbalance strategy, such as class-weighted loss or weighted sampling, so minority defect classes are not overwhelmed by the dominant class.
 
 ## Notes
 

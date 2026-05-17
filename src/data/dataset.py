@@ -1,13 +1,13 @@
 import collections
 import os
 
+import numpy as np
 from PIL import Image
 import pandas as pd
 import torch
 from pandas import DataFrame
 from torch.utils.data import Dataset
 from torchvision.transforms.v2.functional import pil_to_tensor
-
 
 class SeverstalSteelDefectDataset(Dataset):
     def __init__(self, images_path: str, label_csv: str, transform: collections.abc.Callable[[Image.Image], torch.Tensor] | None = None):
@@ -35,6 +35,12 @@ class SeverstalSteelDefectDataset(Dataset):
                 continue
             raise FileNotFoundError(f"Image file not found for sample: {sample['ImageId']}")
 
+        self.classes = np.unique(self.label_data['ClassId'])
+
+    @property
+    def targets(self) -> np.ndarray:
+        return self.label_data['ClassId'].to_numpy()
+
     def __getitem__(self, index) -> tuple[torch.Tensor, int]:
         sample = self.label_data.iloc[index]
         with Image.open(os.path.join(self.images_path, sample['ImageId'])) as image:
@@ -47,4 +53,4 @@ class SeverstalSteelDefectDataset(Dataset):
             return pil_to_tensor(image), sample['ClassId']
 
     def __len__(self) -> int:
-        return self.label_data.size
+        return self.label_data.shape[0]

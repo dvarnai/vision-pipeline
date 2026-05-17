@@ -15,7 +15,7 @@ parser.add_argument("--seed", type=int, default=None, help="random seed for repr
 parser.add_argument("--images-path", type=str,  default="data/train_images", help="path to directory containing images")
 parser.add_argument("--label-csv", type=str, default="data/train.csv", help="path to CSV file containing labels")
 parser.add_argument("--test-size", type=float, default=0.2, help="test set size for stratified split")
-parser.add_argument("--batch-size", type=int, default=32, help="batch size for the dataloaders")
+parser.add_argument("--baseline-class-weights", type=float, nargs=4, default=[1.97632312, 7.20304569, 0.34441748, 2.21372855], help="baseline class weights for comparison")
 args = parser.parse_args()
 
 if args.seed is not None:
@@ -28,20 +28,36 @@ dataset = SeverstalSteelDefectDataset(
 )
 train, val = stratified_train_test_split(
     dataset,
-    targets=dataset.targets,
     test_size=args.test_size,
     random_state=args.seed
 )
 
-print(f"Split dataset into {len(train)} training and {len(val)} validation samples")
+# Verify no overlapping samples
+overlap = set(train.indices) & set(val.indices)
+if len(overlap) > 0:
+    print(f"Error: Training and validation sets have overlapping samples: {overlap}")
+    exit(1)
 
+# Iterate over data to verify images can be read
+image_ids = np.array([id for _, _, id in dataset])
+
+# Verify no overlapping image IDs
+overlap = set.intersection(set(image_ids[train.indices]), set(image_ids[val.indices]))
+if len(overlap) > 0:
+    print(f"Error: Training and validation sets have {len(overlap)} overlapping image IDs: {overlap}")
+    exit(1)
+
+# Check for class distribution shifts
 class_weights = compute_class_weight(
     class_weight="balanced",
     classes=dataset.classes,
     y=np.concatenate(dataset.labels[train.indices])
 )
 
-print(f"Class weights: {class_weights}")
+if np.allclose(class_weights, args.baseline_class_weights, atol=1e-1):
+    print("Class weights match baseline")
+else:
+    print(f"Class weights do not match baseline: {class_weights} vs {args.baseline_class_weights}")
+    exit(1)
 
-train_loader = DataLoader(train, batch_size=args.batch_size, shuffle=True)
-val_loader = DataLoader(val, batch_size=args.batch_size, shuffle=False)
+print("Validation successful")

@@ -10,20 +10,23 @@ from torch.utils.data import Dataset
 from torchvision.transforms.v2.functional import pil_to_tensor
 
 class SeverstalSteelDefectDataset(Dataset):
-    def __init__(self, images_path: str, label_csv: str, transform: collections.abc.Callable[[Image.Image], torch.Tensor] | None = None):
+    def __init__(self, images_path: str, label_csv: str, transform: collections.abc.Callable[[Image.Image], torch.Tensor] | None = None, labels: list[int] = [1,2,3,4]):
         super().__init__()
         self.images_path = images_path
         self.transform = transform
 
         # load label file
         try:
-            self.label_data: DataFrame = pd.read_csv(label_csv, sep=",", iterator=False)
+            csv_data: DataFrame = pd.read_csv(label_csv, sep=",", iterator=False)
         except FileNotFoundError:
             raise FileNotFoundError(f"Label CSV file not found at {label_csv}")
         except pd.errors.EmptyDataError:
             raise ValueError(f"Label CSV file is empty: {label_csv}")
         except pd.errors.ParserError as e:
             raise ValueError(f"Error parsing label CSV file: {label_csv}. Error: {e}")
+
+        # group by ID as it's a multi-class dataset
+        self.label_data = csv_data.groupby('ImageId')['ClassId'].apply(np.array).reset_index()
 
         # verify there are no missing images
         image_files = os.listdir(self.images_path)
@@ -35,13 +38,23 @@ class SeverstalSteelDefectDataset(Dataset):
                 continue
             raise FileNotFoundError(f"Image file not found for sample: {sample['ImageId']}")
 
-        self.classes = np.unique(self.label_data['ClassId'])
+        # validate labels
+        self.classes = np.unique(csv_data['ClassId'])
+        if not np.all(np.isin(self.classes, labels)):
+            raise ValueError(f"Label values must be one of {labels}, found: {self.classes}")
+
+    @property
+    def labels(self) -> np.ndarray:
+        return self.label_data['ClassId'].to_numpy()
 
     @property
     def targets(self) -> np.ndarray:
-        return self.label_data['ClassId'].to_numpy()
+        return np.array([self.compute_target(label) for label in self.labels])
 
-    def __getitem__(self, index) -> tuple[torch.Tensor, int]:
+    def compute_target(self, label):
+        return torch.sum(torch.nn.functional.one_hot(torch.tensor(label)-1, num_classes=len(self.classes)), dim=0)
+
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor, str]:
         sample = self.label_data.iloc[index]
         with Image.open(os.path.join(self.images_path, sample['ImageId'])) as image:
 
@@ -50,7 +63,7 @@ class SeverstalSteelDefectDataset(Dataset):
             if self.transform:
                 image = self.transform(image)
 
-            return pil_to_tensor(image), sample['ClassId']
+            return pil_to_tensor(image), self.compute_target(sample['ClassId']), sample['ImageId']
 
     def __len__(self) -> int:
         return self.label_data.shape[0]

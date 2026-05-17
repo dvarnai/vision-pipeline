@@ -19,6 +19,7 @@ The original Kaggle task is segmentation, but the first project milestone is ima
   - Jupyter
   - ipywidgets
   - scikit-learn
+  - scikit-multilearn
 - Confirmed the Kaggle dataset layout:
 
 ```text
@@ -66,6 +67,10 @@ This helps keep defect classes represented proportionally in both sets, which is
 
 Stratification does not remove the underlying imbalance. Training will still need an imbalance strategy, such as class-weighted loss or weighted sampling, so minority defect classes are not overwhelmed by the dominant class.
 
+Because some images have multiple defect rows in `train.csv`, splitting must happen at the image level rather than the row level. The same `ImageId` should always stay entirely in either the training split or the validation split. The dataset will be converted to one-hot image-level samples so each image has a single target vector representing all defect classes present in that image.
+
+After conversion to one-hot multi-label targets, plain single-label stratification is not enough. The split should use iterative stratification through `scikit-multilearn` so combinations of defect labels are balanced across train and validation sets as well as possible.
+
 ## Notes
 
 The dataset CSV contains `ImageId`, `ClassId`, and `EncodedPixels`.
@@ -83,15 +88,14 @@ For the first pass, the dataset class uses `ClassId` as the image-level label an
 
 The image data is treated as monochrome. Converting images to grayscale during loading avoids carrying redundant RGB channels through the pipeline.
 
-Some images may have more than one defect class annotation. A later iteration should decide whether to handle this as:
-
-- a multi-label classification dataset, with one target vector per image, or
-- a row-level classification dataset, where one image may appear once per class annotation.
+Some images appear multiple times in `train.csv` because they contain defects of multiple types. These should be represented as multi-label, one-hot image-level samples rather than independent row-level samples.
 
 ## Next Steps
 
 - Fix the dataset length calculation so it returns the number of rows or image samples, not the total number of dataframe cells.
-- Decide the target representation for images with multiple defect classes.
+- Convert repeated image rows into one-hot multi-label targets.
+- Update stratified splitting so duplicate `ImageId` values cannot be split across train and validation sets.
+- Use `scikit-multilearn` iterative stratification for the one-hot multi-label targets.
 - Add basic dataset tests or notebook checks for:
   - sample count
   - image tensor shape

@@ -15,6 +15,7 @@ dependencies = [
     "pandas",
     "pillow",
     "scikit-learn",
+    "scikit-multilearn",
     "jupyter",
     "ipywidgets",
 ]

@@ -88,7 +88,7 @@ For the first pass, the dataset class uses `ClassId` as the image-level label an
 
 The image data is treated as monochrome. Converting images to grayscale during loading avoids carrying redundant RGB channels through the pipeline.
 
-Some images appear multiple times in `train.csv` because they contain defects of multiple types. These should be represented as multi-label, one-hot image-level samples rather than independent row-level samples.
+Some images appear multiple times in `train.csv` because they contain defects of multiple types. The file has 7,095 annotation rows for 6,666 unique images. Of those images, 427 have multiple defect classes, and the maximum observed number of classes on a single image is 3. These should be represented as multi-label, one-hot image-level samples rather than independent row-level samples.
 
 ## Next Steps
 

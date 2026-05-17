@@ -44,6 +44,10 @@ class SeverstalSteelDefectDataset(Dataset):
             raise ValueError(f"Label values must be one of {labels}, found: {self.classes}")
 
     @property
+    def image_ids(self) -> np.ndarray:
+        return self.label_data['ImageId'].to_numpy()
+
+    @property
     def labels(self) -> np.ndarray:
         return self.label_data['ClassId'].to_numpy()
 

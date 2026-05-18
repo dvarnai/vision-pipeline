@@ -6,6 +6,4 @@ __pycache__/
 .ipynb_checkpoints/
 .idea/
 
-data/train_images/
-data/test_images/
-data/train.csv
+data/

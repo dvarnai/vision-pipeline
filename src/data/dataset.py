@@ -1,19 +1,31 @@
 import collections
 import os
 
+import PIL
 import numpy as np
 from PIL import Image
 import pandas as pd
 import torch
 from pandas import DataFrame
+from sympy.codegen.ast import none
 from torch.utils.data import Dataset
+from torchvision import transforms
 from torchvision.transforms.v2.functional import pil_to_tensor
 
 class SeverstalSteelDefectDataset(Dataset):
-    def __init__(self, images_path: str, label_csv: str, transform: collections.abc.Callable[[Image.Image], torch.Tensor] | None = None, labels: list[int] = [1,2,3,4]):
+    def __init__(
+            self,
+            images_path: str,
+            label_csv: str,
+            transform: collections.abc.Callable[[Image.Image], torch.Tensor] | None = None,
+            labels: list[int] | None = None
+    ):
         super().__init__()
         self.images_path = images_path
         self.transform = transform
+
+        if labels is None:
+            labels = [1,2,3,4]
 
         # load label file
         try:
@@ -58,16 +70,63 @@ class SeverstalSteelDefectDataset(Dataset):
     def compute_target(self, label):
         return torch.sum(torch.nn.functional.one_hot(torch.tensor(label)-1, num_classes=len(self.classes)), dim=0)
 
-    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor, str]:
+    def __getitem__(self, index) -> tuple[PIL.Image.Image | torch.Tensor, torch.Tensor, str]:
         sample = self.label_data.iloc[index]
         with Image.open(os.path.join(self.images_path, sample['ImageId'])) as image:
-
-            image = image.convert('L')
 
             if self.transform:
                 image = self.transform(image)
 
-            return pil_to_tensor(image), self.compute_target(sample['ClassId']), sample['ImageId']
+            return image, self.compute_target(sample['ClassId']), sample['ImageId']
 
     def __len__(self) -> int:
         return self.label_data.shape[0]
+
+class IntelImageClassificationDataset(Dataset):
+    def __init__(
+            self,
+            images_path: str,
+            transform: collections.abc.Callable[[Image.Image], torch.Tensor] | None = None,
+            labels: dict[str,int] | None = None
+    ):
+        super().__init__()
+
+        self.transform = transform
+
+        if labels is None:
+            labels = {
+                'buildings': 0,
+                'forest': 1,
+                'glacier': 2,
+                'mountain': 3,
+                'sea': 4,
+                'street': 5
+            }
+
+        self.image_paths = []
+        self.labels = []
+        self.class_names = np.array(list(labels.keys()))
+        self.classes = np.array(list(labels.values()))
+
+        # create a dictionary of all the image paths and labels
+        for label in labels.keys():
+            label_path = os.path.join(images_path, label)
+            images = os.listdir(label_path)
+            for image in images:
+                image_path = os.path.join(label_path, image)
+                self.image_paths.append(image_path)
+                self.labels.append(labels[label])
+
+    def compute_target(self, label):
+        return torch.nn.functional.one_hot(torch.tensor(label), num_classes=len(self.classes))
+
+    def __getitem__(self, index) -> tuple[PIL.Image.Image | torch.Tensor, torch.Tensor, str]:
+        with Image.open(self.image_paths[index]) as image:
+            if self.transform:
+                image = self.transform(image)
+
+            return image, self.labels[index]
+
+
+    def __len__(self) -> int:
+        return len(self.image_paths)

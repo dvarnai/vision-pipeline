@@ -225,6 +225,110 @@ weighted avg       0.69      0.58      0.57      3000
 
 Compared with Experiment 2, validation accuracy decreased slightly from `58.60%` to `57.63%`, while weighted F1 stayed almost unchanged (`0.5723` to `0.5718`). This suggests random horizontal flip alone is not a meaningful improvement for this baseline.
 
+## Experiment 4: Early Average Pooling
+
+The fourth experiment kept random horizontal flip augmentation enabled and added `AvgPool2d` after the first convolution block. This reduces the spatial size of the intermediate feature maps before the second convolution, making the network cheaper to train while still keeping the `2x2` adaptive pooling output before the classifier.
+
+```python
+self.features = nn.Sequential(
+    nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
+    nn.BatchNorm2d(8),
+    nn.ReLU(),
+    nn.AvgPool2d(kernel_size=2, stride=2), # [B, 8, in_height // 2, in_width // 2]
+
+    nn.Conv2d(8, 16, kernel_size=3, padding=1),
+    nn.BatchNorm2d(16),
+    nn.ReLU(),
+
+    nn.AdaptiveAvgPool2d((2, 2))
+)
+
+self.classifier = nn.Sequential(
+    nn.Flatten(),
+    nn.Dropout(0.2),
+    nn.Linear(16 * 2 * 2, num_classes),
+)
+```
+
+### Experiment 4 Results
+
+This produced the best validation result so far, despite making the network smaller and the epoch time faster:
+
+```text
+Epoch 99/100, Train Loss: 0.7336, Val Loss: 1.4227, Subset Acc: 0.6597, Weighted F1: 0.6513, Macro F1: 0.6537, Micro F1: 0.6597, Time: 1347.10 ms
+```
+
+Validation classification report:
+
+```text
+              precision    recall  f1-score   support
+
+   buildings       0.49      0.78      0.60       437
+      forest       0.70      0.96      0.81       474
+     glacier       0.83      0.38      0.52       553
+    mountain       0.72      0.64      0.68       525
+         sea       0.62      0.67      0.64       510
+      street       0.77      0.58      0.67       501
+
+    accuracy                           0.66      3000
+   macro avg       0.69      0.67      0.65      3000
+weighted avg       0.70      0.66      0.65      3000
+```
+
+Compared with Experiment 3, validation accuracy increased from `57.63%` to `65.97%`, and weighted F1 increased from `0.5718` to `0.6513`. Epoch time also dropped from `1886.78 ms` to `1347.10 ms`.
+
+## Experiment 5: Early Max Pooling
+
+The fifth experiment kept random horizontal flip augmentation enabled and replaced the early average pooling layer from Experiment 4 with max pooling. The rest of the model stayed the same.
+
+```python
+self.features = nn.Sequential(
+    nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
+    nn.BatchNorm2d(8),
+    nn.ReLU(),
+    nn.MaxPool2d(kernel_size=2, stride=2), # [B, 8, in_height // 2, in_width // 2]
+
+    nn.Conv2d(8, 16, kernel_size=3, padding=1),
+    nn.BatchNorm2d(16),
+    nn.ReLU(),
+
+    nn.AdaptiveAvgPool2d((2, 2))
+)
+
+self.classifier = nn.Sequential(
+    nn.Flatten(),
+    nn.Dropout(0.2),
+    nn.Linear(16 * 2 * 2, num_classes),
+)
+```
+
+### Experiment 5 Results
+
+Max pooling performed better than Experiment 3, which used random horizontal flip without early pooling, but worse than Experiment 4's average pooling result:
+
+```text
+Epoch 100/100, Train Loss: 0.7215, Val Loss: 1.4646, Subset Acc: 0.6280, Weighted F1: 0.6298, Macro F1: 0.6288, Micro F1: 0.6280, Time: 1536.76 ms
+```
+
+Validation classification report:
+
+```text
+              precision    recall  f1-score   support
+
+   buildings       0.37      0.79      0.51       437
+      forest       0.72      0.97      0.82       474
+     glacier       0.81      0.54      0.65       553
+    mountain       0.73      0.56      0.64       525
+         sea       0.73      0.41      0.52       510
+      street       0.74      0.55      0.63       501
+
+    accuracy                           0.63      3000
+   macro avg       0.68      0.64      0.63      3000
+weighted avg       0.69      0.63      0.63      3000
+```
+
+Compared with Experiment 4, validation accuracy decreased from `65.97%` to `62.80%`, and weighted F1 decreased from `0.6513` to `0.6298`. Average pooling remains the better early pooling choice so far.
+
 ## Notes
 
 Data normalization should be computed only from the training split. Validation and test data should be transformed with the same statistics, but should not contribute to the values.

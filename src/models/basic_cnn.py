@@ -12,6 +12,7 @@ class BasicCNN(nn.Module):
             nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
             nn.BatchNorm2d(8),
             nn.ReLU(),
+            nn.AvgPool2d(kernel_size=2, stride=2), # [B, 8, in_height // 2, in_width // 2]
 
             nn.Conv2d(8, 16, kernel_size=3, padding=1),
             nn.BatchNorm2d(16),

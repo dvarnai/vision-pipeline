@@ -178,6 +178,80 @@ After 100 epochs, Experiment 3 reached:
 
 This did not materially improve validation performance. Accuracy decreased slightly from `58.60%` to `57.63%`, and weighted F1 stayed almost unchanged.
 
+### Experiment 4: Early Average Pooling
+
+Experiment 4 kept random horizontal flip augmentation enabled and added average pooling after the first convolution block:
+
+```python
+self.features = nn.Sequential(
+    nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
+    nn.BatchNorm2d(8),
+    nn.ReLU(),
+    nn.AvgPool2d(kernel_size=2, stride=2), # [B, 8, in_height // 2, in_width // 2]
+
+    nn.Conv2d(8, 16, kernel_size=3, padding=1),
+    nn.BatchNorm2d(16),
+    nn.ReLU(),
+
+    nn.AdaptiveAvgPool2d((2, 2))
+)
+
+self.classifier = nn.Sequential(
+    nn.Flatten(),
+    nn.Dropout(0.2),
+    nn.Linear(16 * 2 * 2, num_classes),
+)
+```
+
+After 99 epochs, Experiment 4 reached:
+
+- Train loss: `0.7336`
+- Validation loss: `1.4227`
+- Accuracy: `0.6597`
+- Weighted F1: `0.6513`
+- Macro F1: `0.6537`
+- Micro F1: `0.6597`
+- Epoch time: `1347.10 ms`
+
+This is the best result so far. Accuracy improved from `57.63%` to `65.97%` compared with Experiment 3, while epoch time dropped from `1886.78 ms` to `1347.10 ms`.
+
+### Experiment 5: Early Max Pooling
+
+Experiment 5 kept random horizontal flip augmentation enabled and replaced the early average pooling layer with max pooling:
+
+```python
+self.features = nn.Sequential(
+    nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
+    nn.BatchNorm2d(8),
+    nn.ReLU(),
+    nn.MaxPool2d(kernel_size=2, stride=2), # [B, 8, in_height // 2, in_width // 2]
+
+    nn.Conv2d(8, 16, kernel_size=3, padding=1),
+    nn.BatchNorm2d(16),
+    nn.ReLU(),
+
+    nn.AdaptiveAvgPool2d((2, 2))
+)
+
+self.classifier = nn.Sequential(
+    nn.Flatten(),
+    nn.Dropout(0.2),
+    nn.Linear(16 * 2 * 2, num_classes),
+)
+```
+
+After 100 epochs, Experiment 5 reached:
+
+- Train loss: `0.7215`
+- Validation loss: `1.4646`
+- Accuracy: `0.6280`
+- Weighted F1: `0.6298`
+- Macro F1: `0.6288`
+- Micro F1: `0.6280`
+- Epoch time: `1536.76 ms`
+
+This was worse than the early average pooling result from Experiment 4. Accuracy decreased from `65.97%` to `62.80%`, and weighted F1 decreased from `0.6513` to `0.6298`.
+
 ## Initial Scope
 
 The first version does not use pretrained models. The priority is to learn the major moving parts of a vision pipeline:

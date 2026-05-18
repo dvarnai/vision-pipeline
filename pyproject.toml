@@ -18,6 +18,7 @@ dependencies = [
     "scikit-multilearn",
     "jupyter",
     "ipywidgets",
+    "wandb",
 ]
 
 [tool.setuptools]

@@ -89,11 +89,13 @@ The current pipeline includes:
 6. Training a small baseline CNN
 7. Evaluating with accuracy and F1 scores
 
-No data augmentation is used yet.
+Random horizontal flip has been tested as a first augmentation experiment, but it did not materially improve validation performance.
 
-## Baseline Model
+## Experiments
 
-The first baseline is intentionally small:
+### Experiment 1: `1x1` Adaptive Pooling
+
+The first baseline is intentionally small. It uses two convolution blocks followed by `1x1` adaptive average pooling:
 
 ```python
 self.features = nn.Sequential(
@@ -115,7 +117,7 @@ self.classifier = nn.Sequential(
 )
 ```
 
-After 100 epochs, the baseline reached:
+After 100 epochs, Experiment 1 reached:
 
 - Train loss: `0.9596`
 - Validation loss: `2.0620`
@@ -126,9 +128,59 @@ After 100 epochs, the baseline reached:
 
 This is better than random chance for a six-class problem, where a uniform random classifier would be around `0.1667` accuracy.
 
+### Experiment 2: `2x2` Adaptive Pooling
+
+Increasing adaptive average pooling from `1x1` to `2x2` preserved more spatial information before the classifier:
+
+```python
+self.features = nn.Sequential(
+    nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
+    nn.BatchNorm2d(8),
+    nn.ReLU(),
+
+    nn.Conv2d(8, 16, kernel_size=3, padding=1),
+    nn.BatchNorm2d(16),
+    nn.ReLU(),
+
+    nn.AdaptiveAvgPool2d((2, 2))
+)
+
+self.classifier = nn.Sequential(
+    nn.Flatten(),
+    nn.Dropout(0.2),
+    nn.Linear(16 * 2 * 2, num_classes),
+)
+```
+
+After 100 epochs, Experiment 2 reached:
+
+- Train loss: `0.7920`
+- Validation loss: `1.8334`
+- Accuracy: `0.5860`
+- Weighted F1: `0.5723`
+- Macro F1: `0.5753`
+- Micro F1: `0.5860`
+
+This improved validation accuracy from `45.23%` to `58.60%`.
+
+### Experiment 3: Random Horizontal Flip
+
+Experiment 3 kept the `2x2` adaptive pooling model and added random horizontal flip augmentation to the training transform.
+
+After 100 epochs, Experiment 3 reached:
+
+- Train loss: `0.7525`
+- Validation loss: `1.8210`
+- Accuracy: `0.5763`
+- Weighted F1: `0.5718`
+- Macro F1: `0.5739`
+- Micro F1: `0.5763`
+
+This did not materially improve validation performance. Accuracy decreased slightly from `58.60%` to `57.63%`, and weighted F1 stayed almost unchanged.
+
 ## Initial Scope
 
-The first version does not use data augmentation or pretrained models. The priority is to learn the major moving parts of a vision pipeline:
+The first version does not use pretrained models. The priority is to learn the major moving parts of a vision pipeline:
 
 - data ingestion
 - labeling strategy

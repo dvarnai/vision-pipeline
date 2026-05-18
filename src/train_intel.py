@@ -1,10 +1,10 @@
 import argparse
-import time
 import os
+import random
+import time
 
 import numpy as np
 import torch
-from numpy import dtype
 from sklearn.metrics import f1_score, confusion_matrix, accuracy_score, classification_report
 from sklearn.utils import compute_class_weight
 from torch.utils.data import DataLoader
@@ -13,13 +13,16 @@ from torchvision import transforms
 from src.data.dataset import IntelImageClassificationDataset
 from src.data.statistics import compute_mean_std
 from src.models.basic_cnn import BasicCNN
-from src.data.dataset import SeverstalSteelDefectDataset
-from src.data.split import stratified_train_test_split
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 if DEVICE == 'cuda' and torch.cuda.get_device_capability() >= (8, 0):
     torch.set_float32_matmul_precision('high')
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 def main():
     # CLI arguments
@@ -33,6 +36,8 @@ def main():
     args = parser.parse_args()
 
     if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
         torch.manual_seed(args.seed)
 
     # Set up dataloaders
@@ -55,19 +60,26 @@ def main():
 
     print(f"Class weights: {class_weights}")
 
+    g = torch.Generator()
+    g.manual_seed(0)
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        persistent_workers=True
+        persistent_workers=True,
+        worker_init_fn=seed_worker,
+        generator=g,
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        persistent_workers=True
+        persistent_workers=True,
+        worker_init_fn=seed_worker,
+        generator=g,
     )
 
     # Compute training set statistics
@@ -87,13 +99,14 @@ def main():
     train_dataset.transform = val_dataset.transform = transforms.v2.Compose([
         transforms.v2.ToImage(),
         transforms.v2.Resize((150, 150)),
+        transforms.v2.RandomHorizontalFlip(),
         transforms.v2.ToDtype(torch.float32, scale=True),
         transforms.v2.Normalize(mean=train_mean, std=train_std),
         transforms.v2.ToPureTensor()
     ])
 
     # set up the model
-    model = BasicCNN(num_classes=len(train_dataset.classes), in_channels=3, in_width=150, in_height=150).to(DEVICE)
+    model = torch.compile(BasicCNN(num_classes=len(train_dataset.classes), in_channels=3, in_width=150, in_height=150).to(DEVICE), mode='reduce-overhead')
 
     # set up the optimizer
     total_steps = args.epochs * len(train_dataset) * train_loader.batch_size

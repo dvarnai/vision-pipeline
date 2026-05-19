@@ -8,6 +8,9 @@ class BasicCNN(nn.Module):
     def __init__(self, num_classes: int, in_channels: int, in_height: int, in_width: int):
         super().__init__()
 
+        self.num_classes = num_classes
+        self.in_channels = in_channels
+
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
             nn.BatchNorm2d(8),
@@ -18,13 +21,13 @@ class BasicCNN(nn.Module):
             nn.BatchNorm2d(16),
             nn.ReLU(),
 
-            nn.AdaptiveAvgPool2d((2, 2))
+            nn.AdaptiveAvgPool2d((4, 4))
         )
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(0.2),
-            nn.Linear(16 * 2 * 2, num_classes),
+            nn.Linear(16 * 4 * 4, num_classes),
         )
 
     def forward(self, x):
@@ -35,8 +38,8 @@ class BasicCNN(nn.Module):
     def __repr__(self) -> str:
         return f'BasicCNN(num_classes={self.num_classes}, in_channels={self.in_channels})'
 
-    def __str__(self) -> str:
-        return f'BasicCNN(num_classes={self.num_classes}, in_channels={self.in_channels})'
+    def architecture(self):
+        return str(self.features), str(self.classifier)
 
     def __call__(self, x):
         return self.forward(x)

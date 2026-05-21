@@ -27,17 +27,13 @@ class IntelCNN(nn.Module):
             nn.BatchNorm2d(16),
             nn.ReLU(),
 
-            nn.AdaptiveAvgPool2d((4, 4)),
+            nn.AdaptiveAvgPool2d((1, 1)),
         )
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(0.25),
-            nn.Linear(16 * 4 * 4, 128),
-            nn.ReLU(),
-
-            nn.Dropout(0.25),
-            nn.Linear(128, 64),
+            nn.Linear(16 * 1 * 1, 64),
             nn.ReLU(),
 
             nn.Dropout(0.25),

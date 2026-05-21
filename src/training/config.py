@@ -4,7 +4,6 @@ from typing import Any, Callable, Optional
 
 @dataclass(frozen=True)
 class RunConfig:
-    run_name: str
     batch_size: int
     epochs: int
     num_workers: int
@@ -21,5 +20,8 @@ class RunConfig:
     build_val_transform: Callable[[Any, Any], Any]
     build_optimizer: Callable[[Any], Any]
     build_scheduler: Callable[[Any, int], Any]
+    train_mean: Any = None
+    train_std: Any = None
+    run_name: Optional[str] = None
     wandb_entity: str = "qvai"
     wandb_project: str = "vision-pipeline-intel"

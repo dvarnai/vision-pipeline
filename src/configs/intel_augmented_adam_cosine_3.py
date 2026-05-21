@@ -105,7 +105,6 @@ def build_config():
         )
 
     return RunConfig(
-        run_name="intel_augmented_adam_cosine_3",
         batch_size=64,
         epochs=300,
         num_workers=16,

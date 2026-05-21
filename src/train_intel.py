@@ -20,6 +20,9 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 if DEVICE == 'cuda' and torch.cuda.get_device_capability() >= (8, 0):
     torch.set_float32_matmul_precision('high')
 
+def resolve_run_name(config_module_name, config):
+    return config.run_name or config_module_name.rsplit(".", 1)[-1]
+
 def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
@@ -43,6 +46,7 @@ def main():
     parser.add_argument("--validate-every-n-epochs", type=int, default=None, help="override validation interval")
     parser.add_argument("--checkpoint-every-n-epochs", type=int, default=None, help="override checkpoint interval")
     parser.add_argument("--checkpoint-dir", type=str, default=None, help="override checkpoint directory")
+    parser.add_argument("--compile", action=argparse.BooleanOptionalAction, default=True, help="compile model with torch.compile")
     args = parser.parse_args()
 
     # A resumed run can recover its config module from the checkpoint metadata.
@@ -57,6 +61,7 @@ def main():
     config_module_name = args.config or checkpoint_config_module
     config_module = importlib.import_module(config_module_name)
     config = config_module.build_config()
+    run_name = resolve_run_name(config_module_name, config)
     config_file, config_source = read_config_source(config_module)
 
     # Keep the originally saved config source attached to resumed checkpoints for reproducibility.
@@ -146,6 +151,9 @@ def main():
     if "mean" in checkpoint_training_stats and "std" in checkpoint_training_stats:
         train_mean = checkpoint_training_stats["mean"]
         train_std = checkpoint_training_stats["std"]
+    elif config.train_mean is not None and config.train_std is not None:
+        train_mean = config.train_mean
+        train_std = config.train_std
     else:
         train_mean, train_std = compute_mean_std(train_loader)
 
@@ -161,7 +169,9 @@ def main():
     # Load weights into the raw model before torch.compile wraps it.
     if resume_checkpoint is not None:
         raw_model.load_state_dict(resume_checkpoint["model_state_dict"])
-    model = torch.compile(raw_model.to(DEVICE), mode='reduce-overhead')
+    model = raw_model.to(DEVICE)
+    #if args.compile:
+    #    model = torch.compile(model, mode="reduce-overhead")
 
     # set up the optimizer
     total_steps = epochs * len(train_loader)
@@ -175,7 +185,7 @@ def main():
     scheduler_state = scheduler.state_dict() if scheduler is not None else None
     resume_epoch = int(resume_checkpoint["epoch"]) if resume_checkpoint is not None else 0
     runtime_config = {
-        "run_name": config.run_name,
+        "run_name": run_name,
         "config_module": config_module_name,
         "config_file": config_file,
         "resume": args.resume,
@@ -201,9 +211,9 @@ def main():
     run = wandb.init(
         entity=config.wandb_entity,
         project=config.wandb_project,
-        name=config.run_name,
+        name=run_name,
         config={
-            "run_name": config.run_name,
+            "run_name": run_name,
             "config_module": config_module_name,
             "class_weights": class_weights.tolist(),
             "total_steps": total_steps,
@@ -358,7 +368,7 @@ def main():
         if checkpoint_every_n_epochs and epoch_number % checkpoint_every_n_epochs == 0:
             checkpoint_path = save_checkpoint(
                 checkpoint_dir=checkpoint_dir,
-                run_name=config.run_name,
+                run_name=run_name,
                 epoch=epoch_number,
                 model=model,
                 optimizer=optimizer,

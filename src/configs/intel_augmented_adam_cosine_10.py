@@ -13,35 +13,31 @@ class IntelCNN(nn.Module):
         self.in_channels = in_channels
 
         self.features = nn.Sequential(
-            nn.Conv2d(in_channels, 4, kernel_size=3, padding=1),
-            nn.BatchNorm2d(4),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(4, 8, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
             nn.BatchNorm2d(8),
             nn.ReLU(),
-            nn.AvgPool2d(kernel_size=2, stride=2),
+            nn.AvgPool2d(kernel_size=2, stride=2), # [B, 8, 75, 75]
 
             nn.Conv2d(8, 16, kernel_size=3, padding=1),
             nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.AvgPool2d(kernel_size=2, stride=2), # [B, 16, 32, 32]
 
-            nn.AdaptiveAvgPool2d((4, 4)),
+            nn.Conv2d(16, 24, kernel_size=3, padding=1),
+            nn.BatchNorm2d(24),
+            nn.ReLU(),
+
+            nn.AdaptiveAvgPool2d((4, 4)), # [B, 24, 4, 4]
         )
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(0.25),
-            nn.Linear(16 * 4 * 4, 128),
+            nn.Linear(24 * 4 * 4, 128),
             nn.ReLU(),
 
             nn.Dropout(0.25),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-
-            nn.Dropout(0.25),
-            nn.Linear(64, num_classes),
+            nn.Linear(128, num_classes),
         )
 
     def forward(self, x):

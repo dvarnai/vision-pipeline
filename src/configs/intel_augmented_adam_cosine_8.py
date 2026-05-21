@@ -13,12 +13,7 @@ class IntelCNN(nn.Module):
         self.in_channels = in_channels
 
         self.features = nn.Sequential(
-            nn.Conv2d(in_channels, 4, kernel_size=3, padding=1),
-            nn.BatchNorm2d(4),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(4, 8, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
             nn.BatchNorm2d(8),
             nn.ReLU(),
             nn.AvgPool2d(kernel_size=2, stride=2),
@@ -32,16 +27,12 @@ class IntelCNN(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Dropout(0.25),
+            nn.Dropout(0.5),
             nn.Linear(16 * 4 * 4, 128),
             nn.ReLU(),
 
-            nn.Dropout(0.25),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-
-            nn.Dropout(0.25),
-            nn.Linear(64, num_classes),
+            nn.Dropout(0.5),
+            nn.Linear(128, num_classes),
         )
 
     def forward(self, x):

@@ -1,52 +1,23 @@
 import torch
-from torch import nn
+import torchvision
 from torchvision.transforms import v2
 
 from src.training.config import RunConfig
 
-
-class IntelCNN(nn.Module):
-    def __init__(self, num_classes: int, in_channels: int):
-        super().__init__()
-
-        self.num_classes = num_classes
-        self.in_channels = in_channels
-
-        self.features = nn.Sequential(
-            nn.Conv2d(in_channels, 8, kernel_size=3, padding=1),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(8, 16, kernel_size=3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-
-            nn.AdaptiveAvgPool2d((4, 4)),
-        )
-
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(0.2),
-            nn.Linear(16 * 4 * 4, num_classes),
-        )
-
-    def forward(self, x):
-        return self.classifier(self.features(x))
-
-    def __repr__(self):
-        return f"IntelCNN(num_classes={self.num_classes}, in_channels={self.in_channels})"
-
-    def architecture(self):
-        return str(self.features), str(self.classifier)
-
-
 def build_config():
-    image_size = (150, 150)
+    image_size = (224, 224)
     in_channels = 3
 
     def build_model(num_classes):
-        return IntelCNN(num_classes=num_classes, in_channels=in_channels)
+        resnet = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+
+        # freeze all layers except classifier
+        for param in resnet.parameters():
+            param.requires_grad = False
+
+        resnet.fc = torch.nn.Linear(resnet.fc.in_features, num_classes)
+
+        return resnet
 
     def build_preprocessing_transform(mean, std):
         return v2.Compose([
@@ -58,10 +29,9 @@ def build_config():
         ])
 
     def build_optimizer(model):
-        return torch.optim.Adam(
-            model.parameters(),
-            lr=1e-6,
-            weight_decay=1e-4,
+        return torch.optim.SGD(
+            model.fc.parameters(),
+            lr=1e-4
         )
 
     def build_scheduler(optimizer, total_steps):

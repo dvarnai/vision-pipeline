@@ -7,10 +7,9 @@ from PIL import Image
 import pandas as pd
 import torch
 from pandas import DataFrame
-from sympy.codegen.ast import none
 from torch.utils.data import Dataset
-from torchvision import transforms
-from torchvision.transforms.v2.functional import pil_to_tensor
+
+from src.data.labels import INTEL_CLASS_TO_INDEX
 
 class SeverstalSteelDefectDataset(Dataset):
     def __init__(
@@ -94,14 +93,7 @@ class IntelImageClassificationDataset(Dataset):
         self.transform = transform
 
         if labels is None:
-            labels = {
-                'buildings': 0,
-                'forest': 1,
-                'glacier': 2,
-                'mountain': 3,
-                'sea': 4,
-                'street': 5
-            }
+            labels = INTEL_CLASS_TO_INDEX
 
         self.image_paths = []
         self.labels = []

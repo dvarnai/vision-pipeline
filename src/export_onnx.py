@@ -164,7 +164,7 @@ def main() -> int:
     parser.add_argument("output", help="path to write the ONNX model")
     parser.add_argument("--config", default=None, help="override config module from checkpoint")
     parser.add_argument("--batch-size", type=positive_int, default=1, help="dummy export batch size")
-    parser.add_argument("--opset", type=positive_int, default=18, help="ONNX opset version")
+    parser.add_argument("--opset", type=positive_int, default=None, help="ONNX opset version")
     parser.add_argument(
         "--dynamic-batch",
         action=argparse.BooleanOptionalAction,

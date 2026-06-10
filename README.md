@@ -312,6 +312,48 @@ After 100 epochs, Experiment 5 reached:
 
 This was worse than the early average pooling result from Experiment 4. Accuracy decreased from `65.97%` to `62.80%`, and weighted F1 decreased from `0.6513` to `0.6298`.
 
+### Experiment 6: ResNet-50 Transfer Learning
+
+The transfer-learning track moved from the small custom CNN family to pretrained `ResNet-50`. The best recorded ResNet run fine-tuned the full network and reached:
+
+- Accuracy: `0.8870`
+- Weighted F1: `0.8869`
+- Macro F1: `0.8900`
+- Micro F1: `0.8870`
+- Epoch time: `16103.78 ms`
+
+This became the first strong shipping baseline, but it was later surpassed by the ViT experiments.
+
+### Experiment 7: Vision Transformer Transfer Learning
+
+The ViT track used `ViT-B-16` at `224x224`, matching the expected input size for the selected pretrained weight preset. `ViT-B-16` has `86,567,656` parameters, making it more than three times larger than `ResNet-50`, but its pretrained representation transferred very well to the Intel scene task.
+
+With the ViT backbone frozen and only the classifier head trained, the 100-epoch run reached:
+
+- Accuracy: `0.9347`
+- Weighted F1: `0.9346`
+- Macro F1: `0.9362`
+- Micro F1: `0.9347`
+- Epoch time: `16561.88 ms`
+
+Full ViT fine-tuning then improved rapidly, peaking early at epoch 7:
+
+- Accuracy: `0.9507`
+- Weighted F1: `0.9506`
+- Macro F1: `0.9515`
+- Micro F1: `0.9507`
+- Epoch time: `35864.83 ms`
+
+The best Day 5 result came from full ViT fine-tuning with discriminative learning rates. By epoch 60, that run reached:
+
+- Accuracy: `0.9527`
+- Weighted F1: `0.9525`
+- Macro F1: `0.9536`
+- Micro F1: `0.9527`
+- Epoch time: `35481.59 ms`
+
+This is the strongest validation result recorded so far. The tradeoff is compute cost: the best ViT run takes roughly `35.5` seconds per epoch, while the frozen-backbone ViT run gives a cheaper high-quality baseline at roughly `16.5` seconds per epoch.
+
 ## Initial Scope
 
 The first version does not use pretrained models. The priority is to learn the major moving parts of a vision pipeline:
@@ -330,4 +372,98 @@ A future extension may revisit the Severstal competition objective and train a m
 
 ## Status
 
-The project has a working Intel dataset class, configurable training and evaluation scripts, checkpoint-based reproducibility metadata, early CNN baselines, ResNet transfer-learning runs, and a current best ViT transfer-learning checkpoint.
+The project has a working Intel dataset class, a training/validation loop, custom CNN baselines, ResNet-50 transfer-learning baselines, ViT transfer-learning experiments, and a shared inference path for CLI, API, evaluation, and latency benchmarking.
+
+## Inference
+
+The inference path is intentionally thin. `src.inference.prediction` loads one project checkpoint, reconstructs the config-backed model, rebuilds the deterministic validation transform from the checkpoint's saved training statistics, and uses the same label contract as training and evaluation.
+
+Run single-image CLI inference:
+
+```bash
+python -m src.infer_intel \
+  checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
+  data/intel/seg_test/seg_test/forest/20056.jpg \
+  --top-k 3 \
+  --pretty
+```
+
+Example response:
+
+```json
+{
+  "predicted_label": "forest",
+  "confidence": 0.982134,
+  "model_version": "intel_resnet50_transfer_4_epoch_0100.pt:epoch-100:config-src.configs.intel_resnet50_transfer_4:config-sha-a1b2c3d4e5f6",
+  "preprocessing_version": "preprocess-91a2b3c4d5e6",
+  "label_contract_version": "intel-scene-v1",
+  "latency_ms": 12.431,
+  "top_k": [
+    {"label": "forest", "confidence": 0.982134},
+    {"label": "mountain", "confidence": 0.010442},
+    {"label": "glacier", "confidence": 0.003817}
+  ]
+}
+```
+
+Invalid inputs return clear JSON errors on the CLI and HTTP 400 errors in the API. Validation covers unsupported file extensions, upload content types, extension/content-type mismatches, empty or oversized files, undecodable images, and unsupported Pillow image modes. Supported image modes are converted to RGB before preprocessing.
+
+Run the FastAPI server:
+
+```bash
+CHECKPOINT_PATH=checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
+uvicorn src.api:app --host 0.0.0.0 --port 8000
+```
+
+Example request:
+
+```bash
+curl -s -X POST "http://localhost:8000/predict?top_k=3" \
+  -F "file=@data/intel/seg_test/seg_test/forest/20056.jpg"
+```
+
+Build and run the container:
+
+```bash
+docker build -t vision-pipeline .
+docker run --rm -p 8000:8000 \
+  -e CHECKPOINT_PATH=/models/intel_resnet50_transfer_4_epoch_0100.pt \
+  -v "$PWD/checkpoints:/models:ro" \
+  vision-pipeline
+```
+
+Measure cold and warm single-image latency on the GPU machine:
+
+```bash
+python -m src.benchmark_latency \
+  --device cuda \
+  --image data/intel/seg_test/seg_test/forest/20056.jpg \
+  --model ship=checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
+  --model reject=checkpoints/rejected_model_epoch_0100.pt \
+  --cold-runs 5 \
+  --warm-runs 100
+```
+
+Cold latency includes checkpoint load plus one prediction. Warm latency loads the checkpoint once, runs warmups, then measures repeated single-image predictions.
+
+## Training-Serving Skew
+
+The shared contract is:
+
+- Checkpoint: evaluation, CLI, API, and latency benchmark all call `load_inference_bundle`.
+- Prediction: evaluation and serving call the same forward helper, `predict_batch_logits`; single-image serving wraps the same model and transform in `predict_image`.
+- Preprocessing: inference rebuilds `config.build_val_transform(mean, std)` from the checkpoint's saved `training_stats`, never from freshly computed statistics.
+- Labels: the Intel class order lives in `src.data.labels`, and new checkpoints save `label_contract.version`, `class_names`, and `class_to_index`.
+- Versions: every response includes `model_version`, `preprocessing_version`, and `label_contract_version`.
+
+Older checkpoints that do not contain `label_contract` fall back to `intel-scene-v1`, the class order used by the existing Intel dataset. Config source is stored in checkpoints and included in version hashes, but the loader imports the current config module. Treat config modules used for released checkpoints as immutable, or retrain/re-export if the config code changes.
+
+## Shipping Decision
+
+Ship the ViT-family checkpoint from `src.configs.intel_vit_transfer_4`, the discriminative-learning-rate full fine-tuning run. It is the strongest recorded checkpoint family in this repository, reaching validation accuracy `0.9527` and weighted F1 `0.9525` by epoch 60.
+
+Keep the full-network `ResNet-50` transfer run from `src.configs.intel_resnet50_transfer_4` as the fallback baseline. It reached validation accuracy `0.8870` and weighted F1 `0.8869`, which is strong but materially below the ViT result.
+
+Reject the available custom CNN family for shipping because the best recorded result is materially lower, topping out around validation accuracy `0.7203` and weighted F1 `0.7150`.
+
+Before final release, run `src.test_intel` and `src.benchmark_latency` against the selected ViT checkpoint to record final test metrics and cold/warm latency.

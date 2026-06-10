@@ -19,7 +19,14 @@ dependencies = [
     "jupyter",
     "ipywidgets",
     "wandb",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
 ]
 
 [tool.setuptools]
 py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

@@ -36,12 +36,13 @@ def save_checkpoint(
         train_mean,
         train_std,
         runtime_config,
+        label_contract=None,
 ):
     checkpoint_dir = Path(checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = checkpoint_dir / f"{run_name}_epoch_{epoch:04d}.pt"
 
-    torch.save({
+    payload = {
         "epoch": epoch,
         "model_state_dict": get_model_for_checkpoint(model).state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
@@ -56,6 +57,11 @@ def save_checkpoint(
             "std": train_std,
         },
         "runtime_config": runtime_config,
-    }, checkpoint_path)
+    }
+
+    if label_contract is not None:
+        payload["label_contract"] = label_contract
+
+    torch.save(payload, checkpoint_path)
 
     return checkpoint_path

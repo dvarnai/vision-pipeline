@@ -8,8 +8,9 @@ def build_config():
     image_size = (224, 224)
     in_channels = 3
 
-    def build_model(num_classes):
-        resnet = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    def build_model(num_classes, pretrained=True):
+        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
+        resnet = torchvision.models.resnet50(weights=weights)
 
         # freeze all layers except layer 3 and 4
         for param in resnet.parameters():

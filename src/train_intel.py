@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from src.core.checkpoint import load_checkpoint, read_config_source, save_checkpoint
 from src.data.dataset import IntelImageClassificationDataset
+from src.data.labels import build_intel_label_contract
 from src.data.statistics import compute_mean_std
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -202,6 +203,7 @@ def main():
         "in_channels": config.in_channels,
         "in_width": config.in_width,
         "in_height": config.in_height,
+        "label_contract_version": build_intel_label_contract()["version"],
     }
 
     # set up the loss function
@@ -289,7 +291,7 @@ def main():
 
                     logits = model(images)
                     loss = loss_fn(logits, labels)
-                    probs = torch.sigmoid(logits)
+                    probs = torch.softmax(logits, dim=1)
 
                     running_val_loss += loss.item()
                     running_val_count += 1
@@ -381,6 +383,7 @@ def main():
                 train_mean=train_mean,
                 train_std=train_std,
                 runtime_config=runtime_config,
+                label_contract=build_intel_label_contract(),
             )
             print(f"Saved checkpoint: {checkpoint_path}")
 

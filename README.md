@@ -65,17 +65,75 @@ Install the project dependencies:
 python -m pip install -e .
 ```
 
-Start Jupyter:
+Start Jupyter if you want to inspect notebooks or experiment interactively:
 
 ```bash
 jupyter lab
 ```
 
-Run the Intel baseline training script:
+Run a training job by passing a config module:
 
 ```bash
-python -m src.train_intel
+python -m src.train_intel src.configs.intel_baseline_adam_cosine
 ```
+
+Weights & Biases logging is enabled by the training script. For a local reproducibility run without syncing to W&B, set:
+
+```bash
+export WANDB_MODE=offline
+```
+
+## Reproduce the Best Run
+
+The best saved validation result so far is the discriminative ViT fine-tuning run:
+
+- Config: `src.configs.intel_vit_transfer_4`
+- Best checkpoint: `checkpoints/intel_vit_transfer_4_epoch_0060.pt`
+- Best validation epoch: `60`
+- Validation loss: `0.1412`
+- Accuracy: `0.9527`
+- Weighted F1: `0.9525`
+- Macro F1: `0.9536`
+- Micro F1: `0.9527`
+
+The run uses `ViT-B-16` with `torchvision.models.ViT_B_16_Weights.IMAGENET1K_SWAG_LINEAR_V1`, `224x224` inputs, ImageNet normalization, SGD, cosine annealing, and discriminative learning rates:
+
+- ViT encoder learning rate: `1e-5`
+- Classifier head learning rate: `1e-4`
+- Scheduler minimum learning rate: `1e-6`
+- Batch size: `64`
+- Epochs: `100`
+- Validation interval: every epoch
+- Checkpoint interval: every `10` epochs
+- Seed: not fixed in the original run
+
+To reproduce the run from scratch, keep the Intel dataset under `data/intel` as shown above and run:
+
+```bash
+export WANDB_MODE=offline
+python -m src.train_intel src.configs.intel_vit_transfer_4
+```
+
+The original run used `num_workers=16`. On smaller machines, override that without changing model behavior:
+
+```bash
+python -m src.train_intel src.configs.intel_vit_transfer_4 --num-workers 4
+```
+
+To evaluate the saved best checkpoint on the held-out Intel `seg_test` split:
+
+```bash
+python -m src.test_intel checkpoints/intel_vit_transfer_4_epoch_0060.pt
+```
+
+If the dataset is somewhere else, pass the dataset root explicitly:
+
+```bash
+python -m src.train_intel src.configs.intel_vit_transfer_4 --images-path /path/to/intel
+python -m src.test_intel checkpoints/intel_vit_transfer_4_epoch_0060.pt --images-path /path/to/intel
+```
+
+Because the original run did not use a fixed seed, exact last-decimal metrics are not guaranteed when retraining from scratch. The checkpoint contains the config module name, config source, runtime settings, class weights, optimizer and scheduler state, epoch history, and normalization metadata needed to reproduce or resume the saved run.
 
 ## Current Pipeline
 
@@ -92,6 +150,8 @@ The current pipeline includes:
 Random horizontal flip has been tested as a first augmentation experiment, but it did not materially improve validation performance.
 
 ## Experiments
+
+The following experiments document the early custom-CNN track. They are useful for understanding the project history, but they are no longer the strongest result. The current best saved run is the ViT run documented above.
 
 ### Experiment 1: `1x1` Adaptive Pooling
 
@@ -270,4 +330,4 @@ A future extension may revisit the Severstal competition objective and train a m
 
 ## Status
 
-The project has a working Intel dataset class, a training/validation loop, and a first baseline CNN result.
+The project has a working Intel dataset class, configurable training and evaluation scripts, checkpoint-based reproducibility metadata, early CNN baselines, ResNet transfer-learning runs, and a current best ViT transfer-learning checkpoint.

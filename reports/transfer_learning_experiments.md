@@ -131,6 +131,39 @@ By true-class net wins, ViT led everywhere:
 | `sea` | 1 | 62 | -61 |
 | `mountain` | 10 | 109 | -99 |
 
+## Calibration Check
+
+The selected ViT checkpoint is accurate, but calibration asks a different question: when the model says it is confident, does that confidence match empirical correctness?
+
+Using 10 equal-width confidence bins on the Intel `seg_test` split, the selected checkpoint has low expected calibration error:
+
+| Metric | Value |
+|---|---:|
+| Checkpoint | `checkpoints/intel_vit_transfer_4_epoch_0060.pt` |
+| Samples | 3000 |
+| Accuracy | 0.952667 |
+| Average confidence | 0.957520 |
+| ECE@10 | 0.011785 |
+| Negative log likelihood | 0.141340 |
+| Brier score | 0.076020 |
+
+Reliability table:
+
+| Confidence bin | Count | Accuracy | Avg confidence | Gap |
+|---|---:|---:|---:|---:|
+| 0.0-0.1 | 0 | n/a | n/a | n/a |
+| 0.1-0.2 | 0 | n/a | n/a | n/a |
+| 0.2-0.3 | 2 | 0.500000 | 0.282436 | 0.217564 |
+| 0.3-0.4 | 3 | 0.000000 | 0.358545 | 0.358545 |
+| 0.4-0.5 | 10 | 0.600000 | 0.460015 | 0.139985 |
+| 0.5-0.6 | 55 | 0.600000 | 0.552783 | 0.047217 |
+| 0.6-0.7 | 64 | 0.671875 | 0.649810 | 0.022065 |
+| 0.7-0.8 | 80 | 0.812500 | 0.755584 | 0.056916 |
+| 0.8-0.9 | 148 | 0.831081 | 0.854564 | 0.023482 |
+| 0.9-1.0 | 2638 | 0.980667 | 0.988402 | 0.007735 |
+
+Interpretation: most predictions are in the `0.9-1.0` confidence bin, where the model is slightly over-confident by about `0.0077`. The lower-confidence bins are noisier because they contain few samples, but they also identify the cases where review or abstention would be most useful.
+
 ## What It Did Not Fix
 
 The selected model is not a complete solution.
@@ -139,7 +172,7 @@ The selected model is not a complete solution.
 - It did not make the run cheap. Full ViT fine-tuning takes roughly `35.5` to `36` seconds per epoch in the project notes, which is much slower than the smaller CNN and `150x150` ResNet runs.
 - It did not solve reproducibility exactly. The original run did not use a fixed seed, so retraining from scratch can differ in the last decimals or select a slightly different best epoch.
 - It did not prove held-out generalization beyond the current validation/test folder convention. The project still uses the Intel `seg_test` split as the validation/evaluation split, so a separate final holdout or cross-validation setup would be needed for stronger claims.
-- It did not address production concerns such as model size, inference latency, memory footprint, calibration, or robustness to out-of-distribution images.
+- It did not address production concerns such as model size, inference latency, memory footprint, thresholding or abstention policy, and robustness to out-of-distribution images.
 
 ## Reproduction
 
@@ -154,6 +187,12 @@ Evaluate the selected checkpoint:
 
 ```bash
 python -m src.test_intel checkpoints/intel_vit_transfer_4_epoch_0060.pt
+```
+
+Run the calibration check:
+
+```bash
+python -m src.check_calibration checkpoints/intel_vit_transfer_4_epoch_0060.pt
 ```
 
 Use `--images-path /path/to/intel` if the Intel dataset is not under `data/intel`.

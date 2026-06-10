@@ -22,6 +22,8 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "python-multipart",
+    "onnx",
+    "onnxscript",
 ]
 
 [tool.setuptools]

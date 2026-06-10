@@ -446,6 +446,16 @@ python -m src.benchmark_latency \
 
 Cold latency includes checkpoint load plus one prediction. Warm latency loads the checkpoint once, runs warmups, then measures repeated single-image predictions.
 
+Export a checkpoint to ONNX:
+
+```bash
+python -m src.export_onnx \
+  checkpoints/intel_vit_transfer_4_epoch_0080.pt \
+  exports/intel_vit_transfer_4_epoch_0080.onnx
+```
+
+The exported graph expects already-preprocessed `float32` tensors in `NCHW` layout. The exporter writes a JSON sidecar next to the ONNX file with the class names, model version, preprocessing version, label contract version, expected input shape, and the validation transform string needed to reproduce preprocessing outside the graph.
+
 ## Training-Serving Skew
 
 The shared contract is:

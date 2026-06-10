@@ -11,7 +11,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md main.py ./
+COPY pyproject.toml README.md ./
 COPY src ./src
 
 RUN python -m pip install --no-cache-dir --upgrade pip \

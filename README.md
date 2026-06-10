@@ -1,8 +1,8 @@
-# Vision Pipeline Learning Project
+# Vision Pipeline
 
-This repository is a hands-on project for learning how computer vision pipelines are built, trained, evaluated, and iterated on.
+End-to-end computer vision pipeline for Intel scene classification: training, experiment tracking, checkpointed inference, FastAPI serving, Docker, and ONNX export.
 
-The main learning track now uses the [Intel Image Classification](https://www.kaggle.com/datasets/puneet6060/intel-image-classification) dataset from Kaggle. It is a standard single-label image classification dataset, which makes it a better fit for learning the core training pipeline before moving on to harder tasks.
+The main track uses the [Intel Image Classification](https://www.kaggle.com/datasets/puneet6060/intel-image-classification) dataset from Kaggle. It is a standard single-label scene classification dataset with six natural-scene classes.
 
 The earlier Severstal Steel Defect Detection dataset is still useful, but it is better treated as a stretch goal because it is a multi-label segmentation-oriented dataset.
 
@@ -18,6 +18,18 @@ Build a practical vision pipeline that can classify natural scene images into on
 - `street`
 
 This keeps the first version focused on the core steps of a vision workflow: dataset loading, preprocessing, training, validation, and metric reporting.
+
+## Results
+
+Validation metrics are measured on the Intel `seg_test` split used by this project for evaluation.
+
+| Model | Validation accuracy | Weighted F1 | Notes |
+|---|---:|---:|---|
+| Custom CNN | ~0.7203 | ~0.7150 | learning baseline |
+| ResNet-50 | 0.8870 | 0.8869 | strong fallback |
+| ViT-B-16 | 0.9527 | 0.9525 | best checkpoint |
+
+The selected checkpoint is `checkpoints/intel_vit_transfer_4_epoch_0060.pt`. ResNet-50 remains documented as the lighter fallback baseline, but inference, API, Docker, and export examples below use the selected ViT checkpoint unless a fallback comparison is being measured.
 
 ## Dataset
 
@@ -382,7 +394,7 @@ Run single-image CLI inference:
 
 ```bash
 python -m src.infer_intel \
-  checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
+  checkpoints/intel_vit_transfer_4_epoch_0060.pt \
   data/intel/seg_test/seg_test/forest/20056.jpg \
   --top-k 3 \
   --pretty
@@ -394,7 +406,7 @@ Example response:
 {
   "predicted_label": "forest",
   "confidence": 0.982134,
-  "model_version": "intel_resnet50_transfer_4_epoch_0100.pt:epoch-100:config-src.configs.intel_resnet50_transfer_4:config-sha-a1b2c3d4e5f6",
+  "model_version": "intel_vit_transfer_4_epoch_0060.pt:epoch-60:config-src.configs.intel_vit_transfer_4:config-sha-a1b2c3d4e5f6",
   "preprocessing_version": "preprocess-91a2b3c4d5e6",
   "label_contract_version": "intel-scene-v1",
   "latency_ms": 12.431,
@@ -411,7 +423,7 @@ Invalid inputs return clear JSON errors on the CLI and HTTP 400 errors in the AP
 Run the FastAPI server:
 
 ```bash
-CHECKPOINT_PATH=checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
+CHECKPOINT_PATH=checkpoints/intel_vit_transfer_4_epoch_0060.pt \
 uvicorn src.api:app --host 0.0.0.0 --port 8000
 ```
 
@@ -427,7 +439,7 @@ Build and run the container:
 ```bash
 docker build -t vision-pipeline .
 docker run --rm -p 8000:8000 \
-  -e CHECKPOINT_PATH=/models/intel_resnet50_transfer_4_epoch_0100.pt \
+  -e CHECKPOINT_PATH=/models/intel_vit_transfer_4_epoch_0060.pt \
   -v "$PWD/checkpoints:/models:ro" \
   vision-pipeline
 ```
@@ -438,8 +450,8 @@ Measure cold and warm single-image latency on the GPU machine:
 python -m src.benchmark_latency \
   --device cuda \
   --image data/intel/seg_test/seg_test/forest/20056.jpg \
-  --model ship=checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
-  --model reject=checkpoints/rejected_model_epoch_0100.pt \
+  --model ship=checkpoints/intel_vit_transfer_4_epoch_0060.pt \
+  --model fallback=checkpoints/intel_resnet50_transfer_4_epoch_0100.pt \
   --cold-runs 5 \
   --warm-runs 100
 ```
@@ -450,8 +462,8 @@ Export a checkpoint to ONNX:
 
 ```bash
 python -m src.export_onnx \
-  checkpoints/intel_vit_transfer_4_epoch_0080.pt \
-  exports/intel_vit_transfer_4_epoch_0080.onnx
+  checkpoints/intel_vit_transfer_4_epoch_0060.pt \
+  exports/intel_vit_transfer_4_epoch_0060.onnx
 ```
 
 The exported graph expects already-preprocessed `float32` tensors in `NCHW` layout. The exporter writes a JSON sidecar next to the ONNX file with the class names, model version, preprocessing version, label contract version, expected input shape, and the validation transform string needed to reproduce preprocessing outside the graph.
@@ -476,4 +488,4 @@ Keep the full-network `ResNet-50` transfer run from `src.configs.intel_resnet50_
 
 Reject the available custom CNN family for shipping because the best recorded result is materially lower, topping out around validation accuracy `0.7203` and weighted F1 `0.7150`.
 
-Before final release, run `src.test_intel` and `src.benchmark_latency` against the selected ViT checkpoint to record final test metrics and cold/warm latency.
+No separate final holdout or production latency claim is made here. The documented metrics are validation/evaluation results on the Intel `seg_test` split, and latency should be measured on the target deployment hardware with `src.benchmark_latency`.
